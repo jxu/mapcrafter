@@ -9,6 +9,9 @@ Outputs a huge PNG file using the tiles from a overviewer map.
 
 from optparse import OptionParser
 from PIL import Image
+import pyvips
+pyvips.leak_set(True)
+
 from os.path import join, split, exists
 from glob import glob
 import sys
@@ -82,6 +85,7 @@ def main():
     path += ".png"
     
     all_images = glob(path)
+    print("found {} images".format(len(all_images)))
     if not all_images:
         print("Error! No images found in this zoom level. Is this really an overviewer tile set directory?")
         sys.exit(1)
@@ -145,23 +149,28 @@ def main():
         sys.exit(1)
 
     # Create a new huge image
-    final_img = Image.new("RGBA", final_cropped_img_size, (26, 26, 26, 0))
+    final_img = pyvips.Image.black(*final_cropped_img_size, bands=4)
+    #final_img = Image.new("RGBA", final_cropped_img_size, (26, 26, 26, 0))
 
     # Paste ALL the images
     total = len(all_images)
     counter = 0
     print("Pasting images:")
     for path in all_images:
-        
-        img = Image.open(path)
+        #img = Image.open(path)
+        img = pyvips.Image.new_from_file(path, access="sequential")
         t = get_tuple_coords(options, path)
         x, y = get_cropped_centered_img_coords(options, tile_size, center_vector, crop, t)
-        final_img.paste(img, (x, y))
+        #print(path, x, y)
+        
+        #final_img.paste(img, (x, y))
+        final_img = final_img.insert(img, x, y)
         counter += 1
         if (counter % 100 == 0 or counter == total or counter == 1): print("Pasted {0} of {1}".format(counter, total))
     print("Done!")
     print("Saving image... (this can take a while)")
-    final_img.save(options.output, "PNG")
+    #final_img.save(options.output, "PNG")
+    final_img.write_to_file(options.output)
 
 
 def get_cropped_centered_img_coords(options, tile_size, center_vector, crop, t):
